@@ -3,6 +3,10 @@ from typing import List, Tuple, Callable, Dict, Any, Union
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.feature_extraction.text import CountVectorizer
+import nltk
+
+nltk.download('stopwords')
+nltk.download('wordnet')
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.stem import SnowballStemmer
@@ -20,6 +24,9 @@ CrossValidationMean = Dict[str, Any]
 # region Global Settings
 POSITIVE_FILE_PATH = 'sample_data/rt-polaritydata/rt-polarity.pos'
 NEGATIVE_FILE_PATH = 'sample_data/rt-polaritydata/rt-polarity.neg'
+MODEL_PARAMETERS = {
+    'max_iter': 500
+}
 
 
 # endregion
@@ -62,7 +69,7 @@ def preprocess_data(
     :param verbose: Decide whether to print logs.
     :return: The first value is training X, whereas the second value is the label y.
     """
-    number_of_instances, number_of_features = x.shape[0], x.shape[1]
+    number_of_instances, number_of_features = x.shape[0], x.shape[1] if len(x.shape) > 1 else 1
 
     if verbose:
         print(f'{chalk.bold("-" * 15 + "STARTING PRE-PROCESSING DATA" + "-" * 15)}\n'
@@ -164,7 +171,7 @@ def preprocess_count_uni_gram_occurrence(
 ) -> Tuple[np.ndarray, np.ndarray]:
     vectorizer = CountVectorizer()
 
-    transformed_x = vectorizer.fit_transform(x)
+    transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence")}\n'
               f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
@@ -179,7 +186,7 @@ def preprocess_count_uni_gram_occurrence_excluding_stop_words(
         verbose: bool,
 ) -> Tuple[np.ndarray, np.ndarray]:
     vectorizer = CountVectorizer(stop_words=stopwords.words('english'))
-    transformed_x = vectorizer.fit_transform(x)
+    transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence Excluding Stopwords")}\n'
               f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
@@ -194,11 +201,11 @@ def preprocess_count_uni_gram_occurrence_with_stemming(
 ) -> Tuple[np.ndarray, np.ndarray]:
     stemming_helper = SnowballStemmer('english')
     vectorizer = CountVectorizer()
-    vectorizer.fit(x)
+    vectorizer.fit(x[:, 0])
     analyzer = vectorizer.build_analyzer()
 
-    new_vectorizer = CountVectorizer(analyzer=lambda str: stemming_helper.stem(word) for word in analyzer(str))
-    transformed_x = new_vectorizer.fit_transform(x)
+    new_vectorizer = CountVectorizer(analyzer=lambda str: (stemming_helper.stem(word) for word in analyzer(str)))
+    transformed_x = new_vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence with Stemming")}\n'
               f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
@@ -213,11 +220,11 @@ def preprocess_count_uni_gram_occurrence_with_lemmatization(
 ) -> Tuple[np.ndarray, np.ndarray]:
     lemmatizer = WordNetLemmatizer()
     vectorizer = CountVectorizer()
-    vectorizer.fit(x)
+    vectorizer.fit(x[:, 0])
     analyzer = vectorizer.build_analyzer()
 
-    new_vectorizer = CountVectorizer(analyzer=lambda str: lemmatizer.lemmatize(word) for word in analyzer(str))
-    transformed_x = new_vectorizer.fit_transform(x)
+    new_vectorizer = CountVectorizer(analyzer=lambda str: (lemmatizer.lemmatize(word) for word in analyzer(str)))
+    transformed_x = new_vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence with Lemmatization")}\n'
               f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
@@ -231,7 +238,7 @@ def preprocess_count_bigram_occurrence(
         verbose: bool,
 ) -> Tuple[np.ndarray, np.ndarray]:
     vectorizer = CountVectorizer(ngram_range=(2, 2))
-    transformed_x = vectorizer.fit_transform(x)
+    transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Bigram Occurrence")}\n'
               f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
@@ -245,12 +252,20 @@ def preprocess_count_bigram_occurrence_excluding_stop_words(
         verbose: bool,
 ) -> Tuple[np.ndarray, np.ndarray]:
     vectorizer = CountVectorizer(stop_words=stopwords.words('english'), ngram_range=(2, 2))
-    transformed_x = vectorizer.fit_transform(x)
+    transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence Excluding Stopwords")}\n'
               f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
+
+
+def preprocess_null_process(
+        x: np.ndarray,
+        y: np.ndarray,
+        verbose: bool
+) -> Tuple[np.ndarray, np.ndarray]:
+    return np.ones(y.shape), y
 
 
 # endregion
@@ -272,7 +287,9 @@ def cross_validate(
     :param model: A model
     :return: The report.
     """
-    complete_data = np.append(x, y[:, np.newaxis], axis=1)
+    x = x[:, np.newaxis] if len(x.shape) == 1 else x
+    y = y[:, np.newaxis] if len(y.shape) == 1 else y
+    complete_data = np.append(x, y, axis=1)
     total_number_of_instances = complete_data.shape[0]
     bucket_size = total_number_of_instances // n_fold
 
@@ -365,7 +382,7 @@ def evaluate_preprocess_techniques(
             experimental_preprocess_sets[experimental_preprocess_name],
             False
         )
-        result['experimental'][experimental_preprocess_name] = cross_validate(
+        result['experiment'][experimental_preprocess_name] = cross_validate(
             experimental_x,
             experimental_y,
             model(**model_parameters)
@@ -398,7 +415,7 @@ if __name__ == '__main__':
     print(f'{chalk.bold("TRAINING DATA SIZE:")} {len(training_data)}\n')
     print(f'{chalk.bold("TEST DATA SIZE:")} {len(test_data)}\n')
 
-    # Compare various preprocessing techniques
+    # # Compare various preprocessing techniques
     preprocess_techniques_set = {
         "unigram": [preprocess_count_uni_gram_occurrence],
         "unigram_wrt_stopwords": [preprocess_count_uni_gram_occurrence_excluding_stop_words],
@@ -408,46 +425,48 @@ if __name__ == '__main__':
         "bigram_wrt_stopwords": [preprocess_count_bigram_occurrence_excluding_stop_words]
     }
     preprocess_comparison_result = evaluate_preprocess_techniques(
-        training_x.copy(),
-        training_y.copy(),
-        [],
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        [preprocess_null_process],
         preprocess_techniques_set,
         LogisticRegression,
-        {}
+        MODEL_PARAMETERS
     )
     print(f'{chalk.bold("-" * 15 + "COMPLETED COMPARISON AMONG VARIOUS PREPROCESS TECHNIQUES" + "-" * 15)}\n')
-    pprint.pprint(f'{preprocess_comparison_result}\n')
+    pprint.pprint(preprocess_comparison_result)
 
     # Apply the best preprocess techniques and apply it in
     # the test set.
-    best_techniques, best_macro_f1, best_technique_name = list(), math.inf, ""
-    for key in preprocess_comparison_result['experimental']:
-        experimental_result = preprocess_comparison_result['experimental'][key]
-        if experimental_result['macro f1'] < best_macro_f1:
+    best_techniques, best_macro_f1, best_technique_name = list(), 0, ""
+    for key in preprocess_comparison_result['experiment']:
+        experimental_result = preprocess_comparison_result['experiment'][key]
+        if experimental_result['macro f1'] > best_macro_f1:
             best_macro_f1 = experimental_result['macro f1']
             best_techniques = preprocess_techniques_set[key]
             best_technique_name = key
 
     print(f'{chalk.bold.greenBright("THE BEST PREPROCESS TECHNIQUE IS")} {best_technique_name}.\n')
 
-    best_preprocessed_training_data = preprocess_data(
-        training_data[:, :-1],
-        training_data[:, -1],
+    combined_data = np.append(training_data, test_data, axis=0)
+    combined_data_x, combined_data_y = preprocess_data(
+        combined_data[:, :-1],
+        combined_data[:, -1].astype(int),
         best_techniques
     )
 
-    best_preprocessed_test_data = preprocess_data(
-        test_data[:, :-1],
-        test_data[:, -1],
-        best_techniques
-    )
+    best_preprocessed_training_x = combined_data_x[:len(training_data)]
+    best_preprocessed_training_y = combined_data_y[:len(training_data)]
+    best_preprocessed_test_x = combined_data_x[len(training_data):]
+    best_preprocessed_test_y = combined_data_y[len(training_data):]
 
-    model = LogisticRegression()
-    model.fit(training_x, training_y)
+    model = LogisticRegression(**MODEL_PARAMETERS)
+    model.fit(best_preprocessed_training_x, best_preprocessed_training_y)
     test_result = classification_report(
-        test_y,
-        model.predict(test_x),
+        best_preprocessed_test_y,
+        model.predict(best_preprocessed_test_x),
         target_names=np.array(['Negative Reviews', 'Positive Reviews'])
     )
+
+    print(test_result)
 
 # endregion
