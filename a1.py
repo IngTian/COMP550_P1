@@ -514,6 +514,9 @@ if __name__ == '__main__':
     )
     max_tokens = [100, 1000, 3000, 5000, 8000, 10000, 20000, 50000, 100000]
 
+    print(f'{chalk.bold("-" * 15 + "COMPLETED COMPARISON AMONG VARIOUS PREPROCESS TECHNIQUES" + "-" * 15)}\n')
+    pprint.pprint(preprocess_comparison_result)
+
     # Evaluate the impact of max features on preprocess_count_uni_gram_occurrence
     evaluate_preprocess_performance_by_max_token(
         training_data[:, :-1],
@@ -580,7 +583,6 @@ if __name__ == '__main__':
         'preprocess_count_bigram_occurrence_excluding_stop_words'
     )
 
-
     # Evaluate the impact of max features on preprocess_uni_bi
     evaluate_preprocess_performance_by_max_token(
         training_data[:, :-1],
@@ -591,9 +593,6 @@ if __name__ == '__main__':
         max_tokens,
         'preprocess_uni_bi'
     )
-
-    print(f'{chalk.bold("-" * 15 + "COMPLETED COMPARISON AMONG VARIOUS PREPROCESS TECHNIQUES" + "-" * 15)}\n')
-    pprint.pprint(preprocess_comparison_result)
 
     # Apply the best preprocess techniques and apply it in
     # the test set.
