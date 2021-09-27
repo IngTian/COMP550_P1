@@ -27,6 +27,7 @@ NEGATIVE_FILE_PATH = 'sample_data/rt-polaritydata/rt-polarity.neg'
 MODEL_PARAMETERS = {
     'max_iter': 500
 }
+BEST_MAX_FEATURES = None
 
 
 # endregion
@@ -168,8 +169,9 @@ def preprocess_count_uni_gram_occurrence(
         x: np.ndarray,
         y: np.ndarray,
         verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
 ) -> Tuple[np.ndarray, np.ndarray]:
-    vectorizer = CountVectorizer()
+    vectorizer = CountVectorizer(max_features=max_features)
 
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
@@ -184,8 +186,9 @@ def preprocess_count_uni_gram_occurrence_excluding_stop_words(
         x: np.ndarray,
         y: np.ndarray,
         verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
 ) -> Tuple[np.ndarray, np.ndarray]:
-    vectorizer = CountVectorizer(stop_words=stopwords.words('english'))
+    vectorizer = CountVectorizer(stop_words=stopwords.words('english'), max_features=max_features)
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence Excluding Stopwords")}\n'
@@ -198,13 +201,17 @@ def preprocess_count_uni_gram_occurrence_with_stemming(
         x: np.ndarray,
         y: np.ndarray,
         verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
 ) -> Tuple[np.ndarray, np.ndarray]:
     stemming_helper = SnowballStemmer('english')
-    vectorizer = CountVectorizer()
+    vectorizer = CountVectorizer(max_features=max_features)
     vectorizer.fit(x[:, 0])
     analyzer = vectorizer.build_analyzer()
 
-    new_vectorizer = CountVectorizer(analyzer=lambda str: (stemming_helper.stem(word) for word in analyzer(str)))
+    new_vectorizer = CountVectorizer(
+        analyzer=lambda s: (stemming_helper.stem(word) for word in analyzer(s)),
+        max_features=max_features
+    )
     transformed_x = new_vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence with Stemming")}\n'
@@ -217,13 +224,17 @@ def preprocess_count_uni_gram_occurrence_with_lemmatization(
         x: np.ndarray,
         y: np.ndarray,
         verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
 ) -> Tuple[np.ndarray, np.ndarray]:
     lemmatizer = WordNetLemmatizer()
-    vectorizer = CountVectorizer()
+    vectorizer = CountVectorizer(max_features=max_features)
     vectorizer.fit(x[:, 0])
     analyzer = vectorizer.build_analyzer()
 
-    new_vectorizer = CountVectorizer(analyzer=lambda str: (lemmatizer.lemmatize(word) for word in analyzer(str)))
+    new_vectorizer = CountVectorizer(
+        analyzer=lambda s: (lemmatizer.lemmatize(word) for word in analyzer(s)),
+        max_features=max_features
+    )
     transformed_x = new_vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence with Lemmatization")}\n'
@@ -236,8 +247,9 @@ def preprocess_count_bigram_occurrence(
         x: np.ndarray,
         y: np.ndarray,
         verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
 ) -> Tuple[np.ndarray, np.ndarray]:
-    vectorizer = CountVectorizer(ngram_range=(2, 2))
+    vectorizer = CountVectorizer(ngram_range=(2, 2), max_features=max_features)
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Bigram Occurrence")}\n'
@@ -250,8 +262,13 @@ def preprocess_count_bigram_occurrence_excluding_stop_words(
         x: np.ndarray,
         y: np.ndarray,
         verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
 ) -> Tuple[np.ndarray, np.ndarray]:
-    vectorizer = CountVectorizer(stop_words=stopwords.words('english'), ngram_range=(2, 2))
+    vectorizer = CountVectorizer(
+        stop_words=stopwords.words('english'),
+        ngram_range=(2, 2),
+        max_features=max_features
+    )
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
         print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence Excluding Stopwords")}\n'
@@ -266,6 +283,21 @@ def preprocess_null_process(
         verbose: bool
 ) -> Tuple[np.ndarray, np.ndarray]:
     return np.ones(y.shape), y
+
+
+def preprocess_uni_bi(
+        x: np.ndarray,
+        y: np.ndarray,
+        verbose: bool,
+        max_features: int = BEST_MAX_FEATURES
+) -> Tuple[np.ndarray, np.ndarray]:
+    vectorizer = CountVectorizer(ngram_range=(1, 2), max_features=max_features)
+    transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
+    if verbose:
+        print(f'{chalk.greenBright("Completed Extract Features with Bigram Occurrence")}\n'
+              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+              f'{transformed_x[:2]}')
+    return transformed_x, y
 
 
 # endregion
@@ -391,6 +423,53 @@ def evaluate_preprocess_techniques(
     return result
 
 
+def evaluate_preprocess_performance_by_max_token(
+        x: np.ndarray,
+        y: np.ndarray,
+        model: Callable[[Any], ScikitLearnModel],
+        model_parameters: Dict[str, Any],
+        preprocessor: Callable[[np.ndarray, np.ndarray, bool], Tuple[np.ndarray, np.ndarray]],
+        max_tokens: List[int],
+        preprocess_name: str,
+        verbose: bool = True
+) -> Tuple[
+    List[float],
+    List[float],
+    List[float],
+    List[float],
+    List[float],
+    List[float],
+    List[int]
+]:
+    training_accuracies, training_mf1, training_wf1 = list(), list(), list()
+    val_accuracies, val_mf1, val_wf1 = list(), list(), list()
+
+    for max_token in max_tokens:
+        processed_x, processed_y = preprocessor(x.copy(), y.copy(), False, max_features=max_token)
+        result = cross_validate(processed_x, processed_y, model(**model_parameters))
+        training_accuracies.append(result['training accuracy'])
+        training_mf1.append(result['training macro f1'])
+        training_wf1.append(result['training weighted f1'])
+        val_accuracies.append(result['accuracy'])
+        val_mf1.append(result['macro f1'])
+        val_wf1.append(result['weighted f1'])
+
+    if verbose:
+        plt.plot(max_tokens, training_accuracies, label='Training Accuracies')
+        plt.plot(max_tokens, training_mf1, label='Training Macro f1')
+        plt.plot(max_tokens, training_wf1, label='Training Weighted f1')
+        plt.plot(max_tokens, val_accuracies, label='Validation Accuracies')
+        plt.plot(max_tokens, val_mf1, label='Validation Macro f1')
+        plt.plot(max_tokens, val_wf1, label='Validation Weighted f1')
+        plt.xlabel('Number of Max Features')
+        plt.ylabel('Measures')
+        plt.legend()
+        plt.title(f'Performance of the {preprocess_name} Versus Number of Max Features')
+        plt.show()
+
+    return training_accuracies, training_mf1, training_wf1, val_accuracies, val_mf1, val_wf1, max_tokens
+
+
 # endregion
 
 # region Main
@@ -415,14 +494,15 @@ if __name__ == '__main__':
     print(f'{chalk.bold("TRAINING DATA SIZE:")} {len(training_data)}\n')
     print(f'{chalk.bold("TEST DATA SIZE:")} {len(test_data)}\n')
 
-    # # Compare various preprocessing techniques
+    # Compare various preprocessing techniques
     preprocess_techniques_set = {
         "unigram": [preprocess_count_uni_gram_occurrence],
         "unigram_wrt_stopwords": [preprocess_count_uni_gram_occurrence_excluding_stop_words],
         "unigram_stemming": [preprocess_count_uni_gram_occurrence_with_stemming],
         "unigram_lemmatization": [preprocess_count_uni_gram_occurrence_with_lemmatization],
         "bigram": [preprocess_count_bigram_occurrence],
-        "bigram_wrt_stopwords": [preprocess_count_bigram_occurrence_excluding_stop_words]
+        "bigram_wrt_stopwords": [preprocess_count_bigram_occurrence_excluding_stop_words],
+        "uni_bi": [preprocess_uni_bi]
     }
     preprocess_comparison_result = evaluate_preprocess_techniques(
         training_data[:, :-1],
@@ -432,6 +512,86 @@ if __name__ == '__main__':
         LogisticRegression,
         MODEL_PARAMETERS
     )
+    max_tokens = [100, 1000, 3000, 5000, 8000, 10000, 20000, 50000, 100000]
+
+    # Evaluate the impact of max features on preprocess_count_uni_gram_occurrence
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_count_uni_gram_occurrence,
+        max_tokens,
+        'preprocess_count_uni_gram_occurrence'
+    )
+
+    # Evaluate the impact of max features on preprocess_count_uni_gram_occurrence_excluding_stop_words
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_count_uni_gram_occurrence_excluding_stop_words,
+        max_tokens,
+        'preprocess_count_uni_gram_occurrence_excluding_stop_words'
+    )
+
+    # Evaluate the impact of max features on preprocess_count_uni_gram_occurrence_with_stemming
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_count_uni_gram_occurrence_with_stemming,
+        max_tokens,
+        'preprocess_count_uni_gram_occurrence_with_stemming'
+    )
+
+    # Evaluate the impact of max features on preprocess_count_uni_gram_occurrence_with_lemmatization
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_count_uni_gram_occurrence_with_lemmatization,
+        max_tokens,
+        'preprocess_count_uni_gram_occurrence_with_lemmatization'
+    )
+
+    # Evaluate the impact of max features on preprocess_count_bigram_occurrence
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_count_bigram_occurrence,
+        max_tokens,
+        'preprocess_count_bigram_occurrence'
+    )
+
+    # Evaluate the impact of max features on preprocess_count_bigram_occurrence_excluding_stop_words
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_count_bigram_occurrence_excluding_stop_words,
+        max_tokens,
+        'preprocess_count_bigram_occurrence_excluding_stop_words'
+    )
+
+
+    # Evaluate the impact of max features on preprocess_uni_bi
+    evaluate_preprocess_performance_by_max_token(
+        training_data[:, :-1],
+        training_data[:, -1].astype(int),
+        LogisticRegression,
+        MODEL_PARAMETERS,
+        preprocess_uni_bi,
+        max_tokens,
+        'preprocess_uni_bi'
+    )
+
     print(f'{chalk.bold("-" * 15 + "COMPLETED COMPARISON AMONG VARIOUS PREPROCESS TECHNIQUES" + "-" * 15)}\n')
     pprint.pprint(preprocess_comparison_result)
 
