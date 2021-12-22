@@ -4,7 +4,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.feature_extraction.text import CountVectorizer
 import nltk
-
 nltk.download('stopwords')
 nltk.download('wordnet')
 from nltk.corpus import stopwords
@@ -13,9 +12,6 @@ from nltk.stem import SnowballStemmer
 import numpy as np
 import matplotlib.pyplot as plt
 import pathlib as path
-import seaborn as sns
-from simple_chalk import chalk
-import pprint
 
 np.set_printoptions(linewidth=200)
 ScikitLearnModel = Union[LogisticRegression]
@@ -27,7 +23,7 @@ NEGATIVE_FILE_PATH = 'sample_data/rt-polaritydata/rt-polarity.neg'
 MODEL_PARAMETERS = {
     'max_iter': 500
 }
-BEST_MAX_FEATURES = None
+BEST_MAX_FEATURES = 1500
 
 
 # endregion
@@ -45,9 +41,9 @@ def read_data(path_to_file: str, verbose=True) -> np.ndarray:
     result_data = np.loadtxt(path_to_file, dtype=str, delimiter='\n', encoding='latin1')
 
     if verbose:
-        print(f'{chalk.bold("-" * 15 + "SUCCESSFULLY LOADED DATA" + "-" * 15)}\n')
-        print(f'{chalk.bold.greenBright("SHAPE:")} {result_data.shape}\n')
-        print(f'{chalk.bold("-" * 15 + "SHOWING THE FIRST 5 ROWS OF DATA" + "-" * 15)}\n')
+        print(f'{"-" * 15 + "SUCCESSFULLY LOADED DATA" + "-" * 15}\n')
+        print(f'SHAPE: {result_data.shape}\n')
+        print(f'{"-" * 15 + "SHOWING THE FIRST 5 ROWS OF DATA" + "-" * 15}\n')
         print(f'{result_data[:5]}\n')
 
     return result_data
@@ -73,9 +69,9 @@ def preprocess_data(
     number_of_instances, number_of_features = x.shape[0], x.shape[1] if len(x.shape) > 1 else 1
 
     if verbose:
-        print(f'{chalk.bold("-" * 15 + "STARTING PRE-PROCESSING DATA" + "-" * 15)}\n'
-              f'{chalk.bold("TOTAL ENTRIES:  ")} {number_of_instances}\n'
-              f'{chalk.bold("TOTAL FEATURES: ")} {number_of_features}\n')
+        print(f'{"-" * 15 + "STARTING PRE-PROCESSING DATA" + "-" * 15}\n'
+              f'TOTAL ENTRIES:   {number_of_instances}\n'
+              f'TOTAL FEATURES:  {number_of_features}\n')
 
     for plugin in plugins:
         x, y = plugin(x, y, verbose)
@@ -83,7 +79,10 @@ def preprocess_data(
     return x, y
 
 
-def test_data_split(data_set: np.ndarray, test_ratio: float = 0.3) -> Tuple[np.ndarray, np.ndarray]:
+def test_data_split(
+        data_set: np.ndarray,
+        test_ratio: float = 0.3
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Split the data set into
     training set and test set.
@@ -123,45 +122,6 @@ def visualize_features_impact_via_scatter_plot(
             plt.savefig(folder_path / f'{feature_column_names[feature_index]}.png')
 
 
-def visualize_feature_distribution(
-        x: np.ndarray,
-        y: np.ndarray,
-        features: List[str],
-        complete_feature_labels: np.ndarray,
-        save_folder: path.Path = None,
-) -> None:
-    """
-    Visualize distributions for various
-    features.
-    :param x: Features
-    :param y: Categories
-    :param features: Features to Display
-    :param complete_feature_labels: The complete feature names for each column of input
-    :param save_folder: Target directory to save images.
-    :return:
-    """
-    possible_categories = np.unique(y)
-
-    for feature in features:
-        target_feature_vector = x[:, complete_feature_labels == feature]
-        for label in possible_categories:
-            feature_with_the_target = target_feature_vector[y == label]
-            sns.distplot(
-                feature_with_the_target,
-                hist=False,
-                kde=True,
-                kde_kws={'linewidth': 3},
-                label=label
-            )
-        plt.legend(prop={'size': 16}, title='Category')
-        plt.title(f'Distrubtion with feature {feature}')
-        plt.xlabel(feature)
-        plt.ylabel('Density')
-        plt.show()
-        if save_folder:
-            plt.savefig(str(save_folder / f'{feature}.png'))
-
-
 # endregion
 
 # region Preprocess Plugins
@@ -175,8 +135,8 @@ def preprocess_count_uni_gram_occurrence(
 
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Unigram Occurrence\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
 
     return transformed_x, y
@@ -191,8 +151,8 @@ def preprocess_count_uni_gram_occurrence_excluding_stop_words(
     vectorizer = CountVectorizer(stop_words=stopwords.words('english'), max_features=max_features)
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence Excluding Stopwords")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Unigram Occurrence Excluding Stopwords\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
 
@@ -214,8 +174,8 @@ def preprocess_count_uni_gram_occurrence_with_stemming(
     )
     transformed_x = new_vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence with Stemming")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Unigram Occurrence with Stemming\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
 
@@ -237,8 +197,8 @@ def preprocess_count_uni_gram_occurrence_with_lemmatization(
     )
     transformed_x = new_vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence with Lemmatization")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Unigram Occurrence with Lemmatization\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
 
@@ -252,8 +212,8 @@ def preprocess_count_bigram_occurrence(
     vectorizer = CountVectorizer(ngram_range=(2, 2), max_features=max_features)
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Bigram Occurrence")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Bigram Occurrence\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
 
@@ -271,8 +231,8 @@ def preprocess_count_bigram_occurrence_excluding_stop_words(
     )
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Unigram Occurrence Excluding Stopwords")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Unigram Occurrence Excluding Stopwords\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
 
@@ -294,8 +254,8 @@ def preprocess_uni_bi(
     vectorizer = CountVectorizer(ngram_range=(1, 2), max_features=max_features)
     transformed_x = vectorizer.fit_transform(x[:, 0]).toarray()
     if verbose:
-        print(f'{chalk.greenBright("Completed Extract Features with Bigram Occurrence")}\n'
-              f'{chalk.bold("Shape:")} {transformed_x.shape}\n'
+        print(f'Completed Extract Features with Bigram Occurrence\n'
+              f'Shape: {transformed_x.shape}\n'
               f'{transformed_x[:2]}')
     return transformed_x, y
 
@@ -379,7 +339,7 @@ def cross_validate(
     }
 
 
-def evaluate_preprocess_techniques(
+def evaluate_preprocess_techniques_with_cross_validation(
         x: np.ndarray,
         y: np.ndarray,
         control_preprocess_functions: List[Callable[[np.ndarray, np.ndarray, bool], Tuple[np.ndarray, np.ndarray]]],
@@ -490,9 +450,9 @@ if __name__ == '__main__':
         test_x[:, np.newaxis], test_y[:, np.newaxis], axis=1)
     np.random.shuffle(training_data) and np.random.shuffle(test_data)
 
-    print(f'{chalk.greenBright.bold("-" * 15 + "COMPLETED PARSING DATA" + "-" * 15)}\n')
-    print(f'{chalk.bold("TRAINING DATA SIZE:")} {len(training_data)}\n')
-    print(f'{chalk.bold("TEST DATA SIZE:")} {len(test_data)}\n')
+    print(f'{"-" * 15 + "COMPLETED PARSING DATA" + "-" * 15}\n')
+    print(f'TRAINING DATA SIZE: {len(training_data)}\n')
+    print(f'TEST DATA SIZE: {len(test_data)}\n')
 
     # Compare various preprocessing techniques
     preprocess_techniques_set = {
@@ -504,7 +464,7 @@ if __name__ == '__main__':
         "bigram_wrt_stopwords": [preprocess_count_bigram_occurrence_excluding_stop_words],
         "uni_bi": [preprocess_uni_bi]
     }
-    preprocess_comparison_result = evaluate_preprocess_techniques(
+    preprocess_comparison_result = evaluate_preprocess_techniques_with_cross_validation(
         training_data[:, :-1],
         training_data[:, -1].astype(int),
         [preprocess_null_process],
@@ -514,8 +474,8 @@ if __name__ == '__main__':
     )
     max_tokens = [100, 1000, 3000, 5000, 8000, 10000, 20000, 50000, 100000]
 
-    print(f'{chalk.bold("-" * 15 + "COMPLETED COMPARISON AMONG VARIOUS PREPROCESS TECHNIQUES" + "-" * 15)}\n')
-    pprint.pprint(preprocess_comparison_result)
+    print(f'{"-" * 15 + "COMPLETED COMPARISON AMONG VARIOUS PREPROCESS TECHNIQUES" + "-" * 15}\n')
+    print(preprocess_comparison_result)
 
     # Evaluate the impact of max features on preprocess_count_uni_gram_occurrence
     evaluate_preprocess_performance_by_max_token(
@@ -604,7 +564,7 @@ if __name__ == '__main__':
             best_techniques = preprocess_techniques_set[key]
             best_technique_name = key
 
-    print(f'{chalk.bold.greenBright("THE BEST PREPROCESS TECHNIQUE IS")} {best_technique_name}.\n')
+    print(f'THE BEST PREPROCESS TECHNIQUE IS {best_technique_name}.\n')
 
     combined_data = np.append(training_data, test_data, axis=0)
     combined_data_x, combined_data_y = preprocess_data(
